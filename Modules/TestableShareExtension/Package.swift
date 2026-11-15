@@ -15,7 +15,7 @@ let package = Package(
         .package(path: "../InboxKeychain"),
         .package(path: "../InboxSnapshotTesting"),
         .package(path: "../InboxTesting"),
-        .package(url: "https://gitlab.protontech.ch/apple/shared/ProtonUIFoundations.git", from: "1.4.2"),
+        .package(path: "../../ProtonPackages/et-protoncore/platform/apple/ProtonCoreET"),
     ],
     targets: [
         .target(
@@ -24,7 +24,7 @@ let package = Package(
                 "InboxAttribution",
                 "InboxComposer",
                 "InboxKeychain",
-                .product(name: "ProtonUIFoundations", package: "ProtonUIFoundations"),
+                .product(name: "ProtonUIFoundations", package: "ProtonCoreET"),
             ]
         ),
         .testTarget(

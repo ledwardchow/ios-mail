@@ -159,7 +159,7 @@ struct MainToolbar<AvatarView: View>: ViewModifier {
                     .resizable()
                     .scaledToFit()
                     .frame(width: 32, height: 32)
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.radius.large))
+                    .clipShape(RoundedRectangle(cornerRadius: DS.Radius.large))
             }
             .accessibilityLabel(L10n.MainToolbar.upgrade)
         }

@@ -33,10 +33,11 @@ final class LegacyKeychain: Keychain {
 
     static nonisolated(unsafe) var legacyService = "ch.protonmail"
 
-    private let legacyAccessGroup = "2SB5Z68H26.ch.protonmail.protonmail"
+    private let legacyAccessGroup: String
 
-    init() {
-        super.init(service: Self.legacyService, accessGroup: legacyAccessGroup)
+    init(service: String = LegacyKeychain.legacyService, accessGroup: String = "2SB5Z68H26.ch.protonmail.protonmail") {
+        self.legacyAccessGroup = accessGroup
+        super.init(service: service, accessGroup: accessGroup)
     }
 
     func data(forKey key: Key) throws -> Data? {

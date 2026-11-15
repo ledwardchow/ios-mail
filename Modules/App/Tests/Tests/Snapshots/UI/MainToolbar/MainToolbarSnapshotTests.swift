@@ -58,7 +58,7 @@ final class MainToolbarSnapshotTests {
                             .frame(width: 32, height: 32)
                             .foregroundStyle(.white)
                             .background(.blue)
-                            .clipShape(RoundedRectangle(cornerRadius: Theme.radius.large))
+                            .clipShape(RoundedRectangle(cornerRadius: DS.Radius.large))
                     }
                 )
         }

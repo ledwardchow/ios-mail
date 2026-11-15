@@ -18,6 +18,10 @@
 import SwiftUI
 
 public extension DS.Icon {
+    static let icLockLayers = ImageResource.icLockLayers
+    static let icKey = ImageResource.icKey
+    static let icCardIdentity = ImageResource.icCardIdentity
+    static let icStorage = ImageResource.icStorage
     static let icArchiveBox = ImageResource.icArchiveBox
     static let icArrowUpFromSquare = ImageResource.icArrowUpFromSquare
     static let icArrowOutSquare = ImageResource.icArrowOutSquare

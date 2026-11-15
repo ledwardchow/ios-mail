@@ -67,7 +67,7 @@ packages:
     revision: "be61ddc3c1efb9cb35de251afa88f4897c6cc255"
   SwiftUIIntrospect:
     url: https://github.com/siteline/swiftui-introspect
-    from: "1.4.0-beta.4"
+    exactVersion: "27.1.0"
   TestableNotificationService:
     path: Modules/TestableNotificationService
     group: Modules
@@ -137,14 +137,14 @@ targets:
       preActions:
         - name: swift-format
           script: |
-            if [ $ACTION == "build" ]; then
+            if [ "$ACTION" = "build" ] && [ "$PUBLIC_SOURCE_BUILD" != "YES" ]; then
               cd "$SRCROOT"
               xcrun swift-format format -r Modules -i
             fi
           settingsTarget: ProtonMail
         - name: Sourcery
           script: |
-            if [ $ACTION == "build" ]; then
+            if [ "$ACTION" = "build" ] && [ "$PUBLIC_SOURCE_BUILD" != "YES" ]; then
               cd "$SRCROOT"
               find sourcery/configs -name "*.yaml" -exec /opt/homebrew/bin/mint run sourcery --config {} \;
             fi
@@ -254,10 +254,16 @@ targets:
       - package: SwiftUIIntrospect
     preBuildScripts:
       - name: swift-format
-        script: xcrun swift-format lint -r Modules
+        script: |
+          if [ "$PUBLIC_SOURCE_BUILD" != "YES" ]; then
+            xcrun swift-format lint -r Modules
+          fi
         basedOnDependencyAnalysis: false
       - name: Update Licenses
-        script: /opt/homebrew/bin/mint run LicensePlist license-plist --output-path Settings.bundle
+        script: |
+          if [ "$PUBLIC_SOURCE_BUILD" != "YES" ]; then
+            /opt/homebrew/bin/mint run LicensePlist license-plist --output-path Settings.bundle
+          fi
         basedOnDependencyAnalysis: false
 
   ProtonMailTest:
@@ -325,7 +331,53 @@ targets:
                 ).@count > 0
               ).@count > 0
 
+
+  PublicMigrationTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Modules/App/Tests/Tests/Unit/Services/LegacyMigration
+    dependencies:
+      - target: ProtonMail
+      - package: InboxTesting
+      - package: proton_app_uniffi
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: community.protonmail.publicmigrationtests
+
+  PublicAppSmokeTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: BuildSupport/AppSmokeTests
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: community.protonmail.publicsmoketests
+        TEST_TARGET_NAME: ProtonMail
+    dependencies:
+      - target: ProtonMail
+
 schemes:
+  PublicAppSmokeTests:
+    build:
+      targets:
+        ProtonMail: all
+        PublicAppSmokeTests: all
+    test:
+      config: Debug
+      targets:
+        - PublicAppSmokeTests
+  PublicAppRegressionTests:
+    build:
+      targets:
+        ProtonMail: [test, run]
+        PublicMigrationTests: [test]
+    test:
+      config: Debug
+      targets:
+        - PublicMigrationTests
   ProtonMailUITest:
     build:
       config: Debug

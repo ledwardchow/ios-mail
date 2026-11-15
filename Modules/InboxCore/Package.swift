@@ -13,7 +13,7 @@ let package = Package(
     dependencies: [
         .package(path: "../../ProtonPackages/proton_app_uniffi"),
         .package(path: "../TryCatch"),
-        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "8.8.0"),
+        .package(url: "https://github.com/getsentry/sentry-cocoa", exact: "9.34.0"),
     ],
     targets: [
         .target(

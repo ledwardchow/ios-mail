@@ -73,6 +73,7 @@ actor LegacyMigrationService {
     private let passMigrationPayloadsToRustSDK: PassMigrationPayloadsToRustSDK
     private let settingsMigrator: SettingsMigrator
     private let stateSubject = CurrentValueSubject<MigrationState, Never>(.notChecked)
+    private var isProceeding = false
 
     private var state: MigrationState {
         get {
@@ -120,21 +121,23 @@ actor LegacyMigrationService {
     // MARK: entry points
 
     func proceed() async {
-        let previousState = state
+        guard !isProceeding else { return }
+        isProceeding = true
+        defer { isProceeding = false }
 
-        switch state {
-        case .notChecked:
-            state = startMigrationIfNeeded()
-        case .inProgress(let inputs):
-            state = await performMigration(inputs: inputs)
-        case .awaitingProtectedMainKey:
-            break
-        case .notNeeded, .failed:
-            cleanUpLegacyData()
+        if state == .failed {
+            state = .notChecked
         }
 
-        if state != previousState {
-            await proceed()
+        while true {
+            switch state {
+            case .notChecked:
+                state = startMigrationIfNeeded()
+            case .inProgress(let inputs):
+                state = await performMigration(inputs: inputs)
+            case .awaitingProtectedMainKey, .notNeeded, .failed:
+                return
+            }
         }
     }
 
@@ -217,15 +220,16 @@ actor LegacyMigrationService {
                 mobileSignatureStatusPerUser: inputs.encryptedLegacyData.mobileSignatureStatusPerUser
             )
 
-            try await passMigrationPayloadsToRustSDK(migrationPayloads)
-
             let mailSession = getMailSession()
-            await settingsMigrator.migrateSettings(in: mailSession)
+            try await settingsMigrator.migrateSettings(in: mailSession)
 
             if let protectionPreference = inputs.protectionPreference {
-                await setUpProtection(basedOn: protectionPreference)
+                try await setUpProtection(basedOn: protectionPreference)
             }
 
+            try await passMigrationPayloadsToRustSDK(migrationPayloads)
+
+            cleanUpLegacyData()
             return .notNeeded
         } catch {
             AppLogger.log(error: error, category: .legacyMigration)
@@ -313,18 +317,14 @@ actor LegacyMigrationService {
         }
     }
 
-    private func setUpProtection(basedOn protectionPreference: ProtectionPreference) async {
+    private func setUpProtection(basedOn protectionPreference: ProtectionPreference) async throws {
         let mailSession = getMailSession()
 
-        do {
-            switch protectionPreference {
-            case .biometrics:
-                try await mailSession.setBiometricsAppProtection().get()
-            case .pin(let pin):
-                try await mailSession.setPinCode(pin: pin.digits).get()
-            }
-        } catch {
-            AppLogger.log(error: error, category: .legacyMigration)
+        switch protectionPreference {
+        case .biometrics:
+            try await mailSession.setBiometricsAppProtection().get()
+        case .pin(let pin):
+            try await mailSession.setPinCode(pin: pin.digits).get()
         }
     }
 

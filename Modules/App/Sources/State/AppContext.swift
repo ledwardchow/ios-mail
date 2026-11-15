@@ -131,6 +131,7 @@ final class AppContext: Sendable, ObservableObject {
 }
 
 extension AppContext {
+    @MainActor
     func setupAccountBindings() {
         accountAuthCoordinator.$primaryAccountSession
             .dropFirst()

@@ -29,7 +29,7 @@ struct SettingsState: Copying {
             updateAccountSettings()
         }
     }
-    var hasMailboxPassword: Bool {
+    var hasMailboxPassword: Bool? {
         didSet {
             updateAccountSettings()
         }
@@ -42,8 +42,10 @@ struct SettingsState: Copying {
     mutating func updateAccountSettings() {
         accountSettings = .stale
 
-        if hasMailboxPassword {
+        if hasMailboxPassword == true {
             accountSettings.replace([.changePassword], with: [.changeLoginPassword, .changeMailboxPassword])
+        } else if hasMailboxPassword == nil {
+            accountSettings.removeAll { $0 == .changePassword }
         }
 
         if showSignInToAnotherDevice {
@@ -56,10 +58,10 @@ extension SettingsState {
     static var initial: Self {
         .init(
             accountInfo: nil,
-            accountSettings: .stale,
+            accountSettings: [.securityKeys],
             preferences: SettingsPreference.allCases,
             userSettings: nil,
-            hasMailboxPassword: false
+            hasMailboxPassword: nil
         )
     }
 }

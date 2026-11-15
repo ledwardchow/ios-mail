@@ -182,7 +182,7 @@ struct SettingsScreen: View {
                         ZStack {
                             Color(storage.isNearingOutOfStorage ? DS.Color.Notification.error : DS.Color.Notification.success)
                                 .opacity(0.1)
-                            Image(Theme.icon.storage)
+                            Image(DS.Icon.icStorage)
                                 .resizable()
                                 .square(size: 20)
                                 .foregroundStyle(storage.isNearingOutOfStorage ? DS.Color.Notification.error : DS.Color.Notification.success)

@@ -15,13 +15,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Proton Mail. If not, see https://www.gnu.org/licenses/.
 
+import Foundation
+import InboxCore
+import Security
+
 @testable import InboxKeychain
 @testable import ProtonMail
 
 extension LegacyKeychain {
     static func randomInstance(function: StaticString = #function) -> Self {
-        Self.legacyService = "\(function)_\(UUID().uuidString)"
-        return .init()
+        .init(service: "\(function)_\(UUID().uuidString)", accessGroup: AppGroup.mail)
     }
 
     func set(_ data: Data, forKey key: Key) throws {

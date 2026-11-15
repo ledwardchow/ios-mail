@@ -36,38 +36,29 @@ actor SettingsMigrator {
         self.legacyDataProvider = legacyDataProvider
     }
 
-    func migrateSettings(in session: MailSessionProtocol) async {
+    func migrateSettings(in session: MailSessionProtocol) async throws {
         let appSettingsDiff = AppSettingsDiff(
             appearance: migrateFromUserDefaults(key: .darkMode),
-            autoLock: migrateFromKeychain(key: .autoLockTime),
+            autoLock: try migrateFromKeychain(key: .autoLockTime),
             useCombineContacts: migrateFromUserDefaults(key: .combineContacts),
             useAlternativeRouting: migrateFromUserDefaults(key: .alternativeRouting)
         )
 
-        do {
-            try await session.changeAppSettings(settings: appSettingsDiff).get()
-            await updateAppAppearance()
-        } catch {
-            AppLogger.log(error: error, category: .legacyMigration)
-        }
+        try await session.changeAppSettings(settings: appSettingsDiff).get()
+        await updateAppAppearance()
     }
 
     private func migrateFromKeychain<MigratedValue: LegacyValueConvertible<String>>(
         key: LegacyKeychain.Key
-    ) -> MigratedValue? {
-        do {
-            guard
-                let rawValue = try legacyKeychain.string(forKey: key),
-                let migratedValue = MigratedValue.init(legacyValue: rawValue)
-            else {
-                return nil
-            }
-
-            return migratedValue
-        } catch {
-            AppLogger.log(error: error, category: .legacyMigration)
+    ) throws -> MigratedValue? {
+        guard
+            let rawValue = try legacyKeychain.string(forKey: key),
+            let migratedValue = MigratedValue.init(legacyValue: rawValue)
+        else {
             return nil
         }
+
+        return migratedValue
     }
 
     private func migrateFromUserDefaults<MigratedValue: LegacyValueConvertible<RawValue>, RawValue>(

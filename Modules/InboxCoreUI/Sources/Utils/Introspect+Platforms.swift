@@ -20,6 +20,6 @@ import UIKit
 
 @MainActor
 public enum SupportedIntrospectionPlatforms {
-    public static let list: PlatformViewVersionPredicate<ListType, UICollectionView> = .iOS(.v17, .v18, .v26)
-    public static let datePicker: PlatformViewVersionPredicate<DatePickerType, UIDatePicker> = .iOS(.v17, .v18, .v26)
+    public static let list: PlatformViewVersionPredicate<ListType, UICollectionView> = .iOS(.v17, .v18, .v26, .v27)
+    public static let datePicker: PlatformViewVersionPredicate<DatePickerType, UIDatePicker> = .iOS(.v17, .v18, .v26, .v27)
 }

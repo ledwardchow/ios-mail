@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Proton Mail. If not, see https://www.gnu.org/licenses/.
 
+import Foundation
 import InboxCore
 import InboxTesting
 import Testing
@@ -27,12 +28,23 @@ final class LegacyMigrationServiceTests {
     private let mailSessionStub = MailSessionSpy()
     private let testUserDefaults = TestableUserDefaults.randomInstance()
     private var recordedCallsToMigrate: [[MigrationData]] = []
+    private var migrationShouldFail = false
+    private var sessionOverride: MailSessionProtocol?
+    private var settingsWereSavedBeforeMigration = false
+    private var pinWasSetBeforeMigration = false
+
+    private enum TestError: Error { case migrationFailed }
 
     private lazy var sut = LegacyMigrationService(
         legacyKeychain: legacyKeychain,
         legacyDataProvider: .init(userDefaults: testUserDefaults),
-        getMailSession: { [unowned self] in mailSessionStub },
-        passMigrationPayloadsToRustSDK: { [unowned self] in recordedCallsToMigrate.append($0) },
+        getMailSession: { [unowned self] in sessionOverride ?? mailSessionStub },
+        passMigrationPayloadsToRustSDK: { [unowned self] in
+            settingsWereSavedBeforeMigration = !mailSessionStub.changeAppSettingsInvocations.isEmpty
+            pinWasSetBeforeMigration = !mailSessionStub.setPinCodeInvocations.isEmpty
+            recordedCallsToMigrate.append($0)
+            if migrationShouldFail { throw TestError.migrationFailed }
+        },
         appAppearanceStore: { .init(mailSession: { [unowned self] in mailSessionStub }) }
     )
 
@@ -52,6 +64,9 @@ final class LegacyMigrationServiceTests {
 
         #expect(recordedCallsToMigrate == [[expectedMigrationPayload]])
         await #expect(currentState() == .notNeeded)
+        #expect(try legacyKeychain.data(forKey: .unprotectedMainKey) == nil)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == nil)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.userInfos.rawValue) == nil)
     }
 
     @Test
@@ -61,6 +76,106 @@ final class LegacyMigrationServiceTests {
         await sut.proceed()
 
         #expect(recordedCallsToMigrate.count == 0)
+        await #expect(currentState() == .notNeeded)
+        #expect(try legacyKeychain.data(forKey: .unprotectedMainKey) == mainKey)
+    }
+
+    @Test
+    func whenMigrationFails_preservesLegacyCredentialsAndSettings() async throws {
+        try seedMainKeyOfTheOldAppInLegacyKeychain()
+        seedAuthCredentialsInLegacyUserDefaults()
+        seedUserInfosInLegacyUserDefaults()
+        seedSignatureDataInLegacyUserDefaults()
+        migrationShouldFail = true
+
+        await sut.proceed()
+
+        await #expect(currentState() == .failed)
+        #expect(recordedCallsToMigrate.count == 1)
+        #expect(mailSessionStub.changeAppSettingsInvocations.count == 1)
+        #expect(try legacyKeychain.data(forKey: .unprotectedMainKey) == mainKey)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == encryptedAuthCredentials)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.userInfos.rawValue) == encryptedUserInfos)
+        #expect(testUserDefaults.object(forKey: LegacyDataProvider.Key.mobileSignatureContentPerUser.rawValue) as? [String: Data] == encryptedMobileSignatureContentPerUser)
+    }
+
+    @Test
+    func afterMigrationFails_aLaterProceedRetriesBeforeCleaningUp() async throws {
+        try seedMainKeyOfTheOldAppInLegacyKeychain()
+        seedAuthCredentialsInLegacyUserDefaults()
+        seedUserInfosInLegacyUserDefaults()
+        migrationShouldFail = true
+
+        await sut.proceed()
+        await #expect(currentState() == .failed)
+        migrationShouldFail = false
+
+        await sut.proceed()
+
+        #expect(recordedCallsToMigrate.count == 2)
+        await #expect(currentState() == .notNeeded)
+        #expect(try legacyKeychain.data(forKey: .unprotectedMainKey) == nil)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == nil)
+    }
+
+    @Test
+    func whenLegacyDataCannotBeDecrypted_preservesItForRetry() async throws {
+        try seedMainKeyOfTheOldAppInLegacyKeychain()
+        seedUserInfosInLegacyUserDefaults()
+        let invalidArchive = Data(repeating: 0, count: 32)
+        testUserDefaults.set(invalidArchive, forKey: .authCredentials)
+
+        await sut.proceed()
+
+        await #expect(currentState() == .failed)
+        #expect(recordedCallsToMigrate.isEmpty)
+        #expect(try legacyKeychain.data(forKey: .unprotectedMainKey) == mainKey)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == invalidArchive)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.userInfos.rawValue) == encryptedUserInfos)
+    }
+
+    @Test
+    func whenSettingsMigrationFails_preservesLegacyCredentials() async throws {
+        try seedMainKeyOfTheOldAppInLegacyKeychain()
+        seedAuthCredentialsInLegacyUserDefaults()
+        seedUserInfosInLegacyUserDefaults()
+        sessionOverride = MigrationFailureSession(failure: .settings)
+
+        await sut.proceed()
+
+        await #expect(currentState() == .failed)
+        #expect(recordedCallsToMigrate.isEmpty)
+        #expect(try legacyKeychain.data(forKey: .unprotectedMainKey) == mainKey)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == encryptedAuthCredentials)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.userInfos.rawValue) == encryptedUserInfos)
+    }
+
+    @Test
+    func whenProtectionSetupFails_preservesLegacyCredentials() async throws {
+        seedAuthCredentialsInLegacyUserDefaults()
+        seedUserInfosInLegacyUserDefaults()
+        sessionOverride = MigrationFailureSession(failure: .protection)
+
+        await sut.proceed()
+        await sut.resume(protectedMainKey: mainKey, protectionPreference: .biometrics)
+
+        await #expect(currentState() == .failed)
+        #expect(recordedCallsToMigrate.isEmpty)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == encryptedAuthCredentials)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.userInfos.rawValue) == encryptedUserInfos)
+    }
+
+    @Test
+    func migrationPublishesOnlyAfterSettingsAndProtectionAreSaved() async throws {
+        seedAuthCredentialsInLegacyUserDefaults()
+        seedUserInfosInLegacyUserDefaults()
+
+        await sut.proceed()
+        await sut.resume(protectedMainKey: mainKey, protectionPreference: .pin(.init(digits: [1, 2, 3, 4])))
+
+        #expect(recordedCallsToMigrate.count == 1)
+        #expect(settingsWereSavedBeforeMigration)
+        #expect(pinWasSetBeforeMigration)
         await #expect(currentState() == .notNeeded)
     }
 
@@ -143,6 +258,8 @@ final class LegacyMigrationServiceTests {
 
         #expect(recordedCallsToMigrate.count == 0)
         await #expect(currentState() == .notNeeded)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.authCredentials.rawValue) == encryptedAuthCredentials)
+        #expect(testUserDefaults.data(forKey: LegacyDataProvider.Key.userInfos.rawValue) == encryptedUserInfos)
     }
 
     private func seedMainKeyOfTheOldAppInLegacyKeychain() throws {
@@ -165,6 +282,29 @@ final class LegacyMigrationServiceTests {
 
     private func currentState() async -> LegacyMigrationService.MigrationState {
         await sut.statePublisher.values.first { _ in true }.unsafelyUnwrapped
+    }
+}
+
+final class MigrationFailureSession: MailSession, @unchecked Sendable {
+    enum Failure { case settings, protection }
+    private let failure: Failure
+
+    init(failure: Failure) {
+        self.failure = failure
+        super.init(noPointer: .init())
+    }
+
+    @available(*, unavailable)
+    required init(unsafeFromRawPointer pointer: UnsafeMutableRawPointer) {
+        fatalError("Test sessions have no Rust backing")
+    }
+
+    override func changeAppSettings(settings: AppSettingsDiff) async -> MailSessionChangeAppSettingsResult {
+        failure == .settings ? .error(.other(.network)) : .ok
+    }
+
+    override func setBiometricsAppProtection() async -> MailSessionSetBiometricsAppProtectionResult {
+        .error(.other(.network))
     }
 }
 

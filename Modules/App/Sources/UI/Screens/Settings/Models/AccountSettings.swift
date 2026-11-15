@@ -36,13 +36,13 @@ enum AccountSettings: CaseIterable, Hashable {
         case .qrLogin:
             .init(title: L10n.Settings.signInOnAnotherDevice, icon: DS.Icon.icQrCode)
         case .changePassword:
-            .init(title: L10n.Settings.App.changePassword, icon: Theme.icon.lock)
+            .init(title: L10n.Settings.App.changePassword, icon: DS.Icon.icLock)
         case .changeLoginPassword:
-            .init(title: L10n.Settings.App.changeLoginPassword, icon: Theme.icon.lock)
+            .init(title: L10n.Settings.App.changeLoginPassword, icon: DS.Icon.icLock)
         case .changeMailboxPassword:
-            .init(title: L10n.Settings.App.changeMailboxPassword, icon: Theme.icon.lockLayers)
+            .init(title: L10n.Settings.App.changeMailboxPassword, icon: DS.Icon.icLockLayers)
         case .securityKeys:
-            .init(title: L10n.Settings.App.securityKeys, icon: Theme.icon.securityKey)
+            .init(title: L10n.Settings.App.securityKeys, icon: DS.Icon.icKey)
         }
     }
 }

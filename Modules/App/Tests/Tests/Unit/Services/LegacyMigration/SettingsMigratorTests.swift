@@ -15,6 +15,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Proton Mail. If not, see https://www.gnu.org/licenses/.
 
+import Foundation
 import InboxCore
 import InboxTesting
 import SwiftUI
@@ -54,7 +55,7 @@ final class SettingsMigratorTests {
     ) async throws {
         testUserDefaults.set(legacyValue, forKey: .darkMode)
 
-        await sut.migrateSettings(in: mailSession)
+        try await sut.migrateSettings(in: mailSession)
 
         let settingsUpdate = try #require(mailSession.changeAppSettingsInvocations.first)
         #expect(settingsUpdate.appearance == expected.migratedValue)
@@ -65,7 +66,7 @@ final class SettingsMigratorTests {
     func migratesAutoLock(legacyValue: String, as expectedMigratedValue: AutoLock?) async throws {
         try legacyKeychain.set(legacyValue, forKey: .autoLockTime)
 
-        await sut.migrateSettings(in: mailSession)
+        try await sut.migrateSettings(in: mailSession)
 
         let settingsUpdate = try #require(mailSession.changeAppSettingsInvocations.first)
         #expect(settingsUpdate.autoLock == expectedMigratedValue)
@@ -75,7 +76,7 @@ final class SettingsMigratorTests {
     func migratesCombineContacts(legacyValue: Bool) async throws {
         testUserDefaults.set(legacyValue, forKey: .combineContacts)
 
-        await sut.migrateSettings(in: mailSession)
+        try await sut.migrateSettings(in: mailSession)
 
         let settingsUpdate = try #require(mailSession.changeAppSettingsInvocations.first)
         #expect(settingsUpdate.useCombineContacts == legacyValue)
@@ -85,7 +86,7 @@ final class SettingsMigratorTests {
     func migratesAlternativeRouting(legacyValue: Bool) async throws {
         testUserDefaults.set(legacyValue, forKey: .alternativeRouting)
 
-        await sut.migrateSettings(in: mailSession)
+        try await sut.migrateSettings(in: mailSession)
 
         let settingsUpdate = try #require(mailSession.changeAppSettingsInvocations.first)
         #expect(settingsUpdate.useAlternativeRouting == legacyValue)
@@ -93,7 +94,7 @@ final class SettingsMigratorTests {
 
     @Test
     func doesNotOverrideSettingsThatWereNeverCustomized() async throws {
-        await sut.migrateSettings(in: mailSession)
+        try await sut.migrateSettings(in: mailSession)
 
         let settingsUpdate = try #require(mailSession.changeAppSettingsInvocations.first)
 
@@ -105,5 +106,14 @@ final class SettingsMigratorTests {
         )
 
         #expect(settingsUpdate == expectedSettingsUpdate)
+    }
+
+    @Test
+    func whenSettingsCannotBeSaved_reportsFailure() async {
+        let failingSession = MigrationFailureSession(failure: .settings)
+
+        await #expect(throws: UserSessionError.self) {
+            try await sut.migrateSettings(in: failingSession)
+        }
     }
 }

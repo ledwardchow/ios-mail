@@ -1,44 +1,50 @@
-# Production build investigation
+# Public-source Proton Mail build
 
-Updated 15 November 2026. **No working production client has been built.** The independent UI experiment is not evidence of mail functionality and is not the next priority.
+Updated 15 November 2026. **The real app now builds and launches on an isolated iPhone Duo simulator. Authenticated mailbox access has not been tested. This is an experimental community build, not a production-ready Proton client.**
 
-## Current client: exact evidence
+## Verified outcome
 
-App revision: `701463fe4542945c49ac5d326b0c27e91441e02f`; SDK pin: `0.165.4`.
+- XcodeGen generation and public Swift package resolution pass.
+- The actual ProtonMail app, ShareExtension and NotificationService build using Xcode 27.2 on Apple Silicon.
+- A dedicated clean Duo simulator launches the app and displays the real SDK-backed sign-in form.
+- An XCTest UI smoke test passes: empty-form validation, username and secure-password entry, Continue enabling only when complete, and relaunch clearing the fields. The test never submits credentials.
+- The actual Rust SDK initializes its encrypted local database and Keychain storage and successfully fetches 227 feature flags from Proton's production API. An earlier TCP timeout was transient. This verifies SDK transport, **not authenticated mail access**.
+- The independent sample-data adaptive UI experiment is not used by this app and is not evidence of mailbox functionality. Adaptive mailbox integration remains future work after real-account validation.
 
-Re-ran `xcodegen generate` on the unmodified production spec. It exits with invalid local packages `proton_app_uniffi`, `PaymentsUI`, `ProtonCoreET`, and `PaymentsNG`. This is before compilation or a runnable login screen.
+## Source reconstruction
 
-Restored the missing `scripts/templates/IDETemplateMacros.plist` from the same upstream repository's v4 source (`ProtonMail/xcodeGen/IDETemplateMacros.plist`, commit `ad74cd98465cea14df2a16e541a6b01a24a877da`). This fixes the later post-generation copy input without changing license notices or account behavior; `plutil -lint` passes. It does not resolve the missing packages.
+The app baseline is upstream `701463fe4542945c49ac5d326b0c27e91441e02f`, pinning SDK `0.165.4`.
 
-The exact SDK **does** have a public tag: [ProtonMail/clients mail-uniffi-v0.165.4](https://github.com/ProtonMail/clients/tree/mail-uniffi-v0.165.4), commit `6ef4ff39677fd5cbbc7fcd986b6b0d1b773073f7`. The earlier latest-version comparison was incomplete and is corrected here.
+The exact public SDK tag is [ProtonMail/clients mail-uniffi-v0.165.4](https://github.com/ProtonMail/clients/tree/mail-uniffi-v0.165.4), commit `6ef4ff39677fd5cbbc7fcd986b6b0d1b773073f7`. Matching public crypto sources are pinned at [proton-crypto-rs abcca7aa806891beea4bb348a3e1781d7fb01d6c](https://github.com/ProtonMail/proton-crypto-rs/tree/abcca7aa806891beea4bb348a3e1781d7fb01d6c). See [the recipe and resolved Cargo lockfile](BuildSupport/PublicSDK/README-build.md).
 
-That tag's complete public tree contains no Apple `Package.swift` files supplying the required packages. Its Cargo lockfile also depends on crates from Proton's registry, so the public tag alone is not a ready-made Swift SDK artifact. Registry dependencies and independently published source must be reconciled before a source build can be claimed. This is not proof that all registry dependencies are unavailable: [proton-crypto-rs commit abcca7aa806891beea4bb348a3e1781d7fb01d6c](https://github.com/ProtonMail/proton-crypto-rs/tree/abcca7aa806891beea4bb348a3e1781d7fb01d6c) provides the matching crypto versions. The mail-only SDK source reconstruction has now succeeded. Both Rust targets (arm64 iOS device and simulator), UniFFI Swift generation, and XCFramework packaging passed. All four generated Swift bindings type-check against both slices without diagnostics. The [reproducible recipe and resolved lockfile](BuildSupport/PublicSDK/README-build.md) are included in this fork. This is a default-feature debug SDK, not a byte-identical release, and does not test account login or mail networking.
+Both arm64 device and simulator Rust builds, UniFFI generation, XCFramework packaging and Swift binding typechecks pass. This is a source-built default-feature debug SDK, not a byte-identical official release. No SDK authentication/cryptography implementation was replaced by a mock. Binary artifacts are not committed.
 
-After installing the generated `proton_app_uniffi` package locally and rerunning XcodeGen, the errors dropped from four to three: `PaymentsNG`, `PaymentsUI`, and `ProtonCoreET`. The Rust SDK package is now supplied; the production app still cannot generate/build until those separate Apple packages are resolved.
+The required Apple packages were not published in the checked public source. New GPL-3.0-or-later [community adapters](ProtonPackages/et-protoncore/README.md) implement account/session integration using real SDK calls and ordinary native UI utilities. They are not Proton's unpublished implementations. The share extension now consumes the local public UI product instead of private GitLab. No private repository credentials were used.
 
-## Apple account modules are not just optional UI
+Additional integration fixes include public Introspect 27.1.0, public Sentry 9.34.0 (the old binary interface fails with Swift 6.4), faithful typed-error conformances, existing bundled design-system assets, and explicit UI actor isolation. Original licensing notices remain intact.
 
-The app's `project.yml` requires `AccountChallenge`, `AccountLogin`, `AccountManager`, and `AccountPassword` products from `ProtonCoreET`. `Modules/App/Sources/State/AppContext.swift` creates `AccountChallengeCoordinator` and `AccountAuthCoordinator` during startup, passing them into mail-session creation and restoring the active account through them.
+## Build and test
 
-Checked [ProtonMail/protoncore_ios develop](https://github.com/ProtonMail/protoncore_ios/tree/bb1279db594cb5aeeffcddadad23b8dd8a02104a), including its complete recursive tree and Package.swift. It exports older `ProtonCoreLogin`, `ProtonCoreLoginUI`, `ProtonCoreAccountSwitcher`, and related products, not the required `ProtonCoreET` contract. No matching `PaymentsNG` or new account-module implementation was located there. Merely renaming packages or deleting imports would not implement the missing authentication/session behavior.
+1. Build and link the SDK following `BuildSupport/PublicSDK/README-build.md`.
+2. Run `BuildSupport/PublicSDK/build-app.sh`.
+3. Install only on an isolated simulator for now. Do not replace the official app or its data on a real device.
 
-The share-extension package additionally requests `ProtonUIFoundations` 1.4.2 from Proton's private GitLab (`Modules/TestableShareExtension/Package.swift`). That URL was not contacted.
+The helper uses normal Xcode ad-hoc simulator signing with no developer-account credentials. This matters: unsigned builds compile but cannot obtain the app-group container and crash on startup. Do not manually sign full device entitlements onto a simulator executable; let Xcode generate simulated entitlements.
 
-## Older actual-client fallback investigated
+`PUBLIC_SOURCE_BUILD=YES` preserves checked-in generated Swift and license files while skipping upstream formatting, Sourcery regeneration and LicensePlist regeneration. It does not skip app compilation, substitute authentication or weaken certificate validation. Standard upstream builds keep their existing tool steps.
 
-Created a separate local worktree at upstream `v4` commit `ad74cd98465cea14df2a16e541a6b01a24a877da` (4.22.1, July 2025), without changing the production branch or switching the fork default.
+The `PublicAppSmokeTests` scheme exercises the actual app without submitting credentials. `PublicAppRegressionTests` runs the migration/settings subset in a dedicated target without unrelated private package snapshot fixtures. Those 20 tests pass using synthetic data in random Keychain services in the simulator’s already-entitled app group; production legacy-access defaults are unchanged. `AllUnitAndSnapshotTests` currently cannot compile because the unpublished `ToastViewPreviewProvider` fixture is missing; no full-suite success is claimed.
 
-The documented setup is not entirely public either:
+The final ProtonCoreET package suite passes 33 tests; the separate payment boundary passes 2 tests, and the actual-app smoke test passes 1 test. Focused package tests cover authenticated identity checks, contradictory states, challenge cancellation, task lifecycle, partial-session resume eligibility, interrupted-login recovery, migration replay prevention, password-mode decoding, nested observation, toast presentation/safe-area ownership, and explicit commerce unavailability. These are not substitutes for end-to-end mailbox tests.
 
-- `ProtonMail/xcodeGen/specs/base_config.json` depends on `ProtonInboxRSVP` 2.7.0 from Proton's private GitLab.
-- RSVP types are imported by calendar services, dependency injection, generated app dependencies, attachment handling, and multiple invitation components. Removing the package entry alone does not make this client build.
-- The post-generation script invokes submodule updates and CocoaPods. The test-data submodule and some Podfile URLs reference private infrastructure, though several pod sources are vendored. Those URLs were not contacted.
-- [Upstream issue 92](https://github.com/ProtonMail/ios-mail/issues/92) separately records missing RSVP/ICal packages. There is no maintainer-provided public build solution in its comments as checked.
+## Security and unsupported features
 
-No older client was connected to an account, and no claim is made that this older branch remains supported or safe for production use.
+Implemented SDK-backed paths include SRP username/password login, TOTP, mailbox password, authenticated session restoration, account selection and confirmed sign-out. These paths still require live-account validation. Interrupted requests cannot silently publish a new session; partial sessions can resume through SDK APIs, and an interrupted authenticated session has an explicit account-specific recovery confirmation.
 
-## What unblocks genuine app testing
+Unsupported operations are visibly unavailable and fail closed: human-verification challenges, FIDO-only security-key sign-in, QR sign-in, account creation/recovery, password/security-key settings and in-app purchasing. Existing account entitlements remain the real SDK's responsibility. No purchase, authentication success or mail data is fabricated.
 
-Provide the matching, legitimately accessible `et-protoncore` Apple source/packages plus a buildable exact-version SDK distribution (or all required public source and build inputs), or an upstream public branch that includes them. Then generate the project, resolve remaining compiler/toolchain issues, build for the simulator, and test login and real mail only under appropriate account authorization.
+Legacy migration now preserves credentials on failure, saves settings/protection before publishing migrated sessions, and rejects replay of stale legacy tokens over an existing unvalidated/conflicting SDK session. Exact previously validated authenticated sessions can be reused on retry. Live migration remains untested, and failure retry currently requires a later service invocation/relaunch. Do not rely on this build to migrate the only copy of an account.
 
-Reimplementing the missing account/security SDK would be a separate substantial engineering effort, not a dependency-path fix. No mocked login, weakened certificate validation, substituted cryptography, private credentials, or production account changes have been used to create a misleading build success.
+## Next gate
+
+A user must sign in directly in the isolated app, never send a password in chat. Then test actual mailbox loading/decryption, session restoration, message reading, draft continuity, and authorized sending. A server human-verification requirement will stop this build rather than bypass the challenge. Only after that should adaptive mailbox layout work be treated as functional client development.
