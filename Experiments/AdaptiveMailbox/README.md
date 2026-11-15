@@ -43,7 +43,7 @@ Running unmodified `xcodegen generate` fails with four invalid local packages:
 - `ProtonPackages/et-protoncore/platform/apple/ProtonCoreET`
 - `ProtonPackages/proton_app_uniffi`
 
-Consequently `xcodebuild -project ProtonMail.xcodeproj ... build` exits 66 because the project cannot be generated. The referenced `scripts/templates/IDETemplateMacros.plist` post-generation input is absent too.
+Consequently `xcodebuild -project ProtonMail.xcodeproj ... build` exits 66 because the project cannot be generated. The referenced `scripts/templates/IDETemplateMacros.plist` post-generation input was initially absent; it has since been restored from upstream v4 source.
 
 [Upstream README](https://github.com/ProtonMail/ios-mail/blob/701463fe45/README.md) explicitly says the SDK distribution is internal and the public application cannot currently be built directly.
 

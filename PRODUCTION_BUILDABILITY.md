@@ -8,6 +8,8 @@ App revision: `701463fe4542945c49ac5d326b0c27e91441e02f`; SDK pin: `0.165.4`.
 
 Re-ran `xcodegen generate` on the unmodified production spec. It exits with invalid local packages `proton_app_uniffi`, `PaymentsUI`, `ProtonCoreET`, and `PaymentsNG`. This is before compilation or a runnable login screen.
 
+Restored the missing `scripts/templates/IDETemplateMacros.plist` from the same upstream repository's v4 source (`ProtonMail/xcodeGen/IDETemplateMacros.plist`, commit `ad74cd98465cea14df2a16e541a6b01a24a877da`). This fixes the later post-generation copy input without changing license notices or account behavior; `plutil -lint` passes. It does not resolve the missing packages.
+
 The exact SDK **does** have a public tag: [ProtonMail/clients mail-uniffi-v0.165.4](https://github.com/ProtonMail/clients/tree/mail-uniffi-v0.165.4), commit `6ef4ff39677fd5cbbc7fcd986b6b0d1b773073f7`. The earlier latest-version comparison was incomplete and is corrected here.
 
 That tag's complete public tree contains no Apple `Package.swift` files supplying the required packages. Its Cargo lockfile also depends on crates from Proton's registry, so the public tag alone is not a ready-made Swift SDK artifact. Registry dependencies and independently published source must be reconciled before a source build can be claimed. This is not proof that all registry dependencies are unavailable: [proton-crypto-rs commit abcca7aa806891beea4bb348a3e1781d7fb01d6c](https://github.com/ProtonMail/proton-crypto-rs/tree/abcca7aa806891beea4bb348a3e1781d7fb01d6c) provides the matching crypto versions. A mail-only SDK source reconstruction is being investigated separately; no successful SDK compile is claimed yet.
@@ -17,6 +19,8 @@ That tag's complete public tree contains no Apple `Package.swift` files supplyin
 The app's `project.yml` requires `AccountChallenge`, `AccountLogin`, `AccountManager`, and `AccountPassword` products from `ProtonCoreET`. `Modules/App/Sources/State/AppContext.swift` creates `AccountChallengeCoordinator` and `AccountAuthCoordinator` during startup, passing them into mail-session creation and restoring the active account through them.
 
 Checked [ProtonMail/protoncore_ios develop](https://github.com/ProtonMail/protoncore_ios/tree/bb1279db594cb5aeeffcddadad23b8dd8a02104a), including its complete recursive tree and Package.swift. It exports older `ProtonCoreLogin`, `ProtonCoreLoginUI`, `ProtonCoreAccountSwitcher`, and related products, not the required `ProtonCoreET` contract. No matching `PaymentsNG` or new account-module implementation was located there. Merely renaming packages or deleting imports would not implement the missing authentication/session behavior.
+
+The share-extension package additionally requests `ProtonUIFoundations` 1.4.2 from Proton's private GitLab (`Modules/TestableShareExtension/Package.swift`). That URL was not contacted.
 
 ## Older actual-client fallback investigated
 
