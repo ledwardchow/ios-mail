@@ -47,7 +47,7 @@ Consequently `xcodebuild -project ProtonMail.xcodeproj ... build` exits 66 becau
 
 [Upstream README](https://github.com/ProtonMail/ios-mail/blob/701463fe45/README.md) explicitly says the SDK distribution is internal and the public application cannot currently be built directly.
 
-Follow-up correction: the exact SDK version **is publicly tagged** at [mail-uniffi-v0.165.4](https://github.com/ProtonMail/clients/tree/mail-uniffi-v0.165.4), commit `6ef4ff39677fd5cbbc7fcd986b6b0d1b773073f7`. The earlier comparison with the latest SDK was not sufficient to establish a version blocker. The exact tag still does not contain the missing Apple packages and its Cargo lockfile uses additional Proton-registry dependencies. See the [production dependency investigation](../../PRODUCTION_BUILDABILITY.md). No private infrastructure was contacted and no authentication/crypto stubs were substituted.
+Follow-up correction: the exact SDK version **is publicly tagged** at [mail-uniffi-v0.165.4](https://github.com/ProtonMail/clients/tree/mail-uniffi-v0.165.4), commit `6ef4ff39677fd5cbbc7fcd986b6b0d1b773073f7`. The earlier comparison with the latest SDK was not sufficient to establish a version blocker. The exact tag does not contain the missing Apple packages. Its SDK dependency graph has since been reconstructed with exact public-source replacements, and the real device/simulator SDK now builds and its Swift bindings type-check. See the [production dependency investigation](../../PRODUCTION_BUILDABILITY.md). No private infrastructure was contacted and no authentication/crypto stubs were substituted.
 
 ## Integration path when upstream dependencies become available
 

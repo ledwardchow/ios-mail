@@ -1,0 +1,11 @@
+*.tar.gz
+clients/
+crypto/
+rust-mail-vendor/
+build-tools/
+empty-proton-registry/
+output/
+*.log
+metadata.json
+reconstruction-report.json
+__pycache__/
