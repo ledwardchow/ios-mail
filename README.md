@@ -1,5 +1,7 @@
 # Proton Mail iOS
 
+> Fork experiment: [adaptive mailbox layout lab](Experiments/AdaptiveMailbox/README.md). This independently buildable sample-data demo does not unblock or replace the production Proton Mail app.
+
 **Proton Mail iOS** is the Proton Mail iOS client for encrypted email.
 
 ## Important Notice
